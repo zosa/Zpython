@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+﻿#!/usr/bin/env python2
 # -*- coding: UTF-8 -*-
 '''
 Created on 2012-12-04
@@ -13,16 +13,31 @@ import socket
 import fcntl
 import struct
 import time
+import datetime
 
 os.putenv("LANG","en_US.UTF-8")
 
 #下列变量请根据实际情况修改
 
 nic = "eth0"    #服务器主网卡
-backdir = "/data/backup/rman/"    #备份数据的根目录
+backdir = "/data/backup/"    #备份数据的根目录
 width = 110    #分割线的总长度
 
 niclist = os.listdir('/sys/class/net/')    #服务器所有网卡列表
+
+#配置log目录及文件名
+nowdata=datetime.datetime.now()
+logpath = ("/data/logs/sysinfolog/" + str(nowdata.year) + "-" + str(nowdata.month) + '/')
+if os.path.exists(logpath):
+    pass
+else:
+    os.makedirs(logpath,0700)
+
+
+logname = str(datetime.date.today()) + ".log.txt"
+logfile = logpath + logname
+todaylog=open(logfile, 'a')
+
 
 def get_size(filename):
     '''计算filename的大小,保留一位小数,小数位超过两位,就自动进位。
@@ -37,7 +52,7 @@ def get_size(filename):
 def get_dir_info(path):
     for root,dirlist,filelist in os.walk(path):
         for filename in filelist:
-            print(os.path.join(root,filename), get_size(os.path.join(root,filename)))
+            todaylog.write(os.path.join(root,filename), get_size(os.path.join(root,filename)))
 
 def get_ip_address(ifname):
     '''获取本机网卡ip
@@ -68,20 +83,24 @@ def put_nic_flow(nic,sec):
     (recv, send) = get_nic_flow(nic) 
     time.sleep(int(sec))
     (new_recv, new_send) = get_nic_flow(nic)
-    print("%s: recv: %.3f MB, send %.3f MB" % (nic, (new_recv -recv)/1024/1024, (new_send - send)/1024/1024))
+    todaylog.write("%s: recv: %.3f MB, send %.3f MB" % (nic, (new_recv -recv)/1024/1024, (new_send - send)/1024/1024))
+    todaylog.write('\n')
+    todaylog.write('\n')
     (recv, send) = (new_recv, new_send)
 	
 
 def get_info(cmd,text,width=110):
     '''通过subprocess.call直接执行系统命令
     '''
-    print(text).center(width,'=')
-    print("\n")
+    todaylog.write((text).center(width,'='))
+    todaylog.write('\n')
+    todaylog.write('\n')
     p = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE)
     pipe = p.stdout.readlines()
     for i in pipe:
-        print(i)
-	
+        todaylog.write(i)
+    todaylog.write('\n')
+    todaylog.write('\n')
 def popen_info(cmd):
     '''通过subprocess.Popen执行系统命令,并获取输出
     '''
@@ -90,8 +109,9 @@ def popen_info(cmd):
     pipe = p.stdout.readlines()
     return pipe
 	
-print("服务器 " + get_ip_address(nic)).center(width,'=')
-
+todaylog.write(("服务器 " + get_ip_address(nic)).center(width,'='))
+todaylog.write('\n')
+todaylog.write('\n')
 
 #二、运维信息检查
 ##(一)系统检查
@@ -105,12 +125,18 @@ get_info("uptime","系统负载情况(uptime)")
 
 ###3、检查系统CPU使用情况(top) 系统进程信息
 topinfo = popen_info("top -bn1")
-print("系统CPU使用情况(top -bn1)").center(width,'=')
-print("\n")
-print(topinfo[2])
-print("系统进程信息(top -bn1)").center(width,'=')
-print("\n")
-print(topinfo[1])
+todaylog.write(("系统CPU使用情况(top -bn1)").center(width,'='))
+todaylog.write('\n')
+todaylog.write('\n')
+todaylog.write(topinfo[2])
+todaylog.write('\n')
+todaylog.write('\n')
+todaylog.write(("系统进程信息(top -bn1)").center(width,'='))
+todaylog.write('\n')
+todaylog.write('\n')
+todaylog.write(topinfo[1])
+todaylog.write('\n')
+todaylog.write('\n')
 
 	
 ###4、检查系统内存使用情况(free –m)
@@ -129,7 +155,7 @@ get_info('last| grep "$(date -d yesterday +"%a %b")"', '系统前一天的用户
 get_info('df -h','系统磁盘空间使用情况(df -h)')
     
 #2、磁盘IO繁忙度检查(iostat 5 3)
-get_info('iostat 5 3', '磁盘IO情况(iostat 5 3)')
+get_info('iostat 5 3', '磁盘IO情况(iostat 1 10)')
 	
 ##(三)网络检查
 
@@ -151,11 +177,14 @@ get_info('netstat -i',"检查网络状况(netstat -i)")
 get_info("netstat -n | awk '/^tcp/ {++S[$NF]} END {for(a in S) print a,S[a]}'","检查Tcp连接状态(netstat -n | awk '/^tcp/ {++S[$NF]} END {for(a in S) print a,S[a]}')")
 
 ###6、检查当前网卡流量
-print("检查当前网卡流量").center(width,'=')
-print("\n")
+todaylog.write(("检查当前网卡流量").center(width,'='))
+todaylog.write('\n')
+todaylog.write('\n')
 put_nic_flow(nic,1)
 
 #(四)数据备份检查
 #1、递归显示备份目录下的所有目录及子目录下的文件内容(ls -lsShR 目标目录)
 get_info("ls -lsShR %s" % backdir,"检查数据备份情况(ls -lsShR %s)" % backdir)
+
+todaylog.close()
 
